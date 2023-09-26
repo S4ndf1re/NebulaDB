@@ -1,6 +1,9 @@
+const DEFAULT_LIMIT: usize = 100;
+
+
 #[derive(Clone)]
 pub struct QueryOptions {
-    pub(crate) limit: Option<usize>,
+    pub(crate) limit: usize,
     pub(crate) ascending: bool,
     pub(crate) cutoff: f64,
 }
@@ -11,7 +14,7 @@ impl QueryOptions {
     }
 
     pub fn limit(&mut self, limit: usize) -> &mut Self {
-        self.limit = Some(limit);
+        self.limit = limit;
         self
     }
 
@@ -38,9 +41,35 @@ impl QueryOptions {
 impl Default for QueryOptions {
     fn default() -> Self {
         Self {
-            limit: None,
+            limit: DEFAULT_LIMIT,
             ascending: false,
             cutoff: -1.0,
         }
+    }
+}
+
+#[derive(Clone)]
+pub struct InsertOptions {
+    pub(crate) limit: usize,
+}
+
+impl InsertOptions {
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn limit(&mut self, limit: usize) -> &mut Self {
+        self.limit = limit;
+        self
+    }
+
+    pub fn build(&mut self) -> Self {
+        self.clone()
+    }
+}
+
+impl Default for InsertOptions {
+    fn default() -> Self {
+        Self { limit: DEFAULT_LIMIT }
     }
 }
