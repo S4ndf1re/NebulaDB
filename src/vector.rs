@@ -1,4 +1,4 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap};
 
 
 #[derive(Clone)]
@@ -8,19 +8,14 @@ pub struct Metadata {
 
 #[derive(Clone)]
 pub struct Vector {
-    pub data: Arc<[f64]>,
+    pub id: usize,
+    pub data: Vec<f64>,
 }
 
 impl Vector {
-    pub fn new(data: &[f64]) -> Self {
-        let mut v = Vec::new();
-        v.reserve_exact(data.len());
-
-        for i in data.as_ref() {
-            v.push(*i);
-        }
-
-        let mut s = Vector { data: Arc::from(v) };
+    pub fn new(id: usize, mut data: Vec<f64>) -> Self {
+        data.shrink_to_fit();
+        let mut s = Vector {id, data };
         s.normalize();
 
         s
@@ -44,14 +39,16 @@ impl Vector {
             vec.push(num / abs);
         }
 
-        self.data = Arc::from(vec);
+        self.data = vec;
     }
 }
 
 impl From<Vec<f64>> for Vector {
-    fn from(vec: Vec<f64>) -> Self {
+    fn from(mut vec: Vec<f64>) -> Self {
+        vec.shrink_to_fit();
         Self {
-            data: Arc::from(vec),
+            id: 0,
+            data: vec,
         }
     }
 }
@@ -60,7 +57,7 @@ impl std::ops::Mul for &Vector {
     type Output = f64;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        assert!(self.data.len() == rhs.data.len());
+        assert_eq!(self.data.len(), rhs.data.len());
 
         let mut sum = 0.0;
         for i in 0..self.data.len() {
@@ -75,7 +72,7 @@ impl std::ops::Sub for &Vector {
     type Output = Vector;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        assert!(self.data.len() == rhs.data.len());
+        assert_eq!(self.data.len(), rhs.data.len());
 
         let mut vec = Vec::new();
         vec.reserve_exact(self.data.len());
@@ -92,7 +89,7 @@ impl std::ops::Add for &Vector {
     type Output = Vector;
 
     fn add(self, rhs: Self) -> Self::Output {
-        assert!(self.data.len() == rhs.data.len());
+        assert_eq!(self.data.len(), rhs.data.len());
 
         let mut vec = Vec::new();
         vec.reserve_exact(self.data.len());
@@ -113,7 +110,7 @@ impl std::ops::MulAssign<f64> for Vector {
             vec_res.push(i * rhs);
         }
 
-        self.data = Arc::from(vec_res);
+        self.data = vec_res;
     }
 }
 
