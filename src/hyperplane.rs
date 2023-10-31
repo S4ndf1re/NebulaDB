@@ -23,13 +23,13 @@ impl From<(&Vector, &Vector)> for Hyperplane {
     }
 }
 
-impl std::cmp::PartialEq<Vector> for Hyperplane {
+impl PartialEq<Vector> for Hyperplane {
     fn eq(&self, other: &Vector) -> bool {
         (&self.normal * &(other - &self.base)).abs() < f64::EPSILON
     }
 }
 
-impl std::cmp::PartialOrd<Vector> for Hyperplane {
+impl PartialOrd<Vector> for Hyperplane {
     fn partial_cmp(&self, other: &Vector) -> Option<std::cmp::Ordering> {
         let angle = &self.normal * &(other - &self.base);
 

@@ -114,7 +114,7 @@ impl std::ops::MulAssign<f64> for Vector {
     }
 }
 
-impl std::cmp::PartialEq  for Vector {
+impl PartialEq  for Vector {
     fn eq(&self, other: &Self) -> bool {
         if self.data.len() != other.data.len() {
             return false
