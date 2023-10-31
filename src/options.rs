@@ -51,6 +51,8 @@ impl Default for QueryOptions {
 #[derive(Clone)]
 pub struct InsertOptions {
     pub(crate) limit: usize,
+    pub(crate) with_payload: bool,
+    pub(crate) autoset_id: bool,
 }
 
 impl InsertOptions {
@@ -63,6 +65,16 @@ impl InsertOptions {
         self
     }
 
+    pub fn with_payload(&mut self, with_payload: bool) -> &mut Self {
+        self.with_payload = with_payload;
+        self
+    }
+
+    pub fn autoset_id(&mut self, autoset: bool) -> &mut Self {
+        self.autoset_id = autoset;
+        self
+    }
+
     pub fn build(&mut self) -> Self {
         self.clone()
     }
@@ -70,6 +82,6 @@ impl InsertOptions {
 
 impl Default for InsertOptions {
     fn default() -> Self {
-        Self { limit: DEFAULT_LIMIT }
+        Self { limit: DEFAULT_LIMIT, with_payload: false, autoset_id: false }
     }
 }

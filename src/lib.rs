@@ -5,24 +5,34 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 
+pub use error::*;
+pub use hyperplane::*;
+pub use options::*;
+pub use payload_store::*;
+pub use similarity::*;
+pub use vector::*;
+
 pub mod util;
 
 pub mod error;
-pub use error::*;
 
 pub mod options;
-pub use options::*;
 
 pub mod vector;
-pub use vector::*;
 
 pub mod hyperplane;
-pub use hyperplane::*;
 
 pub mod similarity;
-pub use similarity::*;
 
 mod test;
+pub mod payload_store;
+pub(crate) mod id_provider;
+
+
+pub struct VectorInsert {
+    pub vec: Vector,
+    pub payload: Option<JsonMap>,
+}
 
 /// Annoy Index node
 /// Left node means, all vectors are below the hyperplane
@@ -99,7 +109,7 @@ impl IndexNode {
                         right: IndexNode::Leaf {
                             vectors: right_list,
                         }
-                        .into(),
+                            .into(),
                         total,
                         hyperplane: plane,
                     }
@@ -124,8 +134,8 @@ impl IndexNode {
     /// Query all embeddings using annoy index
     /// NOTE: the sort order is ascending, meaning the last values are the closest to the query
     fn query<S>(&self, query: &Vector, count: usize) -> Vec<(f64, &Vector)>
-    where
-        S: SimilarityMeasure,
+        where
+            S: SimilarityMeasure,
     {
         match self {
             IndexNode::Leaf { vectors } => {
@@ -162,37 +172,52 @@ impl IndexNode {
 pub struct Index<S> {
     vec_len: usize,
     index: IndexNode,
+    payload_store: PayloadStore,
     _name: String,
     _phantom_s: PhantomData<S>,
 }
 
 impl<S> Index<S>
-where
-    S: SimilarityMeasure,
+    where
+        S: SimilarityMeasure,
 {
     pub fn new(name: String, len: usize) -> Self {
         Self {
             vec_len: len,
             index: IndexNode::Leaf { vectors: vec![] },
+            payload_store: PayloadStore::new(),
             _name: name,
             _phantom_s: PhantomData {},
         }
     }
 
-    pub fn upsert<P: AsRef<[Vector]>>(&mut self, points: P, options: InsertOptions) -> Result<()> {
+    pub fn upsert<P: AsRef<[VectorInsert]>>(&mut self, points: P, options: InsertOptions) -> Result<()> {
         for i in 0..points.as_ref().len() {
             let point = &points.as_ref()[i];
-            if point.data.len() != self.vec_len {
+            if point.vec.data.len() != self.vec_len {
                 return Err(Error::VectorLengthInvalid {
                     index: i,
                     expected: self.vec_len,
-                    found: point.data.len(),
+                    found: point.vec.data.len(),
                 });
+            }
+
+            if options.with_payload && point.payload.is_none() {
+                return Err(Error::MissingPayload);
+            } else if !options.with_payload && point.payload.is_some() {
+                return Err(Error::ProvidedPayload);
+            }
+
+            if !options.autoset_id {
+                todo!("check for only unique and not inserted ids")
             }
         }
 
         for point in points.as_ref() {
-            self.index.insert(point.to_owned(), options.limit);
+            self.index.insert(point.vec.to_owned(), options.limit);
+            if point.payload.is_some() {
+                self.payload_store.add_payload(point.vec.id, point.payload.unwrap().to_owned());
+            }
         }
 
         Ok(())
@@ -200,12 +225,12 @@ where
 
     /// query all vectors and get most similar
     /// Note that this function may spawn threads (rayon)
-    pub fn query<'a>(
-        &'a self,
+    pub fn query(
+        &self,
         ref_point: &Vector,
         options: QueryOptions,
-    ) -> Vec<(f64, &'a Vector)> {
-        // NOTE: Use Rayon to parellize computation
+    ) -> Vec<(f64, &Vector)> {
+        // NOTE: Use Rayon to parallelize computation
         let mut result = self.index.query::<S>(ref_point, options.limit);
 
         if options.ascending {
