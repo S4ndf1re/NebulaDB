@@ -8,6 +8,8 @@ pub enum Error {
     MissingPayload,
     #[error("option with_payload was set to false, meaning all upserted vectors must NOT be paired with a payload")]
     ProvidedPayload,
+    #[error("id '{0}' already exists")]
+    IdAlreadyExists(usize),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

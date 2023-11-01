@@ -1,5 +1,7 @@
-use std::{collections::HashMap};
+use std::collections::HashMap;
+use std::sync::Arc;
 
+use crate::id_provider::{IdGuard, SharedIdGuard};
 
 #[derive(Clone)]
 pub struct Metadata {
@@ -8,14 +10,25 @@ pub struct Metadata {
 
 #[derive(Clone)]
 pub struct Vector {
-    pub id: usize,
+    pub id: Arc<IdGuard<usize>>,
     pub data: Vec<f64>,
 }
 
 impl Vector {
-    pub fn new(id: usize, mut data: Vec<f64>) -> Self {
+    pub fn new(id: SharedIdGuard<usize>, mut data: Vec<f64>) -> Self {
         data.shrink_to_fit();
-        let mut s = Vector {id, data };
+        let mut s = Vector { id, data };
+        s.normalize();
+
+        s
+    }
+
+    pub fn new_with_default_id(mut data: Vec<f64>) -> Self {
+        data.shrink_to_fit();
+        let mut s = Vector {
+            id: Arc::new(IdGuard::default()),
+            data,
+        };
         s.normalize();
 
         s
@@ -47,7 +60,7 @@ impl From<Vec<f64>> for Vector {
     fn from(mut vec: Vec<f64>) -> Self {
         vec.shrink_to_fit();
         Self {
-            id: 0,
+            id: Arc::new(IdGuard::default()),
             data: vec,
         }
     }
@@ -114,18 +127,18 @@ impl std::ops::MulAssign<f64> for Vector {
     }
 }
 
-impl PartialEq  for Vector {
+impl PartialEq for Vector {
     fn eq(&self, other: &Self) -> bool {
         if self.data.len() != other.data.len() {
-            return false
+            return false;
         }
 
         for i in 0..self.data.len() {
             if (self.data[i] - other.data[i]) > f64::EPSILON {
-                return false
+                return false;
             }
         }
-        
+
         true
     }
 }

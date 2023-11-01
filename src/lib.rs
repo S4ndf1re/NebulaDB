@@ -1,4 +1,8 @@
+#![feature(step_trait)]
+
 use std::marker::PhantomData;
+use std::ops::Deref;
+use std::sync::Arc;
 
 use rayon::{
     prelude::{IntoParallelIterator, ParallelIterator},
@@ -11,6 +15,8 @@ pub use options::*;
 pub use payload_store::*;
 pub use similarity::*;
 pub use vector::*;
+
+use crate::id_provider::IdProvider;
 
 pub mod util;
 
@@ -29,9 +35,21 @@ pub mod payload_store;
 pub(crate) mod id_provider;
 
 
+#[derive(Clone)]
 pub struct VectorInsert {
+    pub id: usize,
     pub vec: Vector,
     pub payload: Option<JsonMap>,
+}
+
+impl From<Vector> for VectorInsert {
+    fn from(value: Vector) -> Self {
+        Self {
+            id: value.id.deref().deref().clone(),
+            vec: value,
+            payload: None,
+        }
+    }
 }
 
 /// Annoy Index node
@@ -173,6 +191,7 @@ pub struct Index<S> {
     vec_len: usize,
     index: IndexNode,
     payload_store: PayloadStore,
+    id_provider: IdProvider<usize>,
     _name: String,
     _phantom_s: PhantomData<S>,
 }
@@ -186,6 +205,7 @@ impl<S> Index<S>
             vec_len: len,
             index: IndexNode::Leaf { vectors: vec![] },
             payload_store: PayloadStore::new(),
+            id_provider: IdProvider::new(),
             _name: name,
             _phantom_s: PhantomData {},
         }
@@ -209,14 +229,26 @@ impl<S> Index<S>
             }
 
             if !options.autoset_id {
-                todo!("check for only unique and not inserted ids")
+                if !self.id_provider.check_is_free(&point.id) {
+                    return Err(Error::IdAlreadyExists(point.id));
+                }
             }
         }
 
         for point in points.as_ref() {
-            self.index.insert(point.vec.to_owned(), options.limit);
+            let mut point = point.clone();
+
+            let id = if options.autoset_id {
+                self.id_provider.claim_new_id()
+            } else {
+                self.id_provider.claim_if_free(&point.id).ok_or(Error::IdAlreadyExists(point.id))?
+            };
+
+            point.vec.id = Arc::clone(&id);
+
+            self.index.insert(point.vec, options.limit);
             if point.payload.is_some() {
-                self.payload_store.add_payload(point.vec.id, point.payload.unwrap().to_owned());
+                self.payload_store.add_payload(id, point.payload.unwrap().to_owned());
             }
         }
 

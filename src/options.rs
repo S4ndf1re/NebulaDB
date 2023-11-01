@@ -60,23 +60,23 @@ impl InsertOptions {
         Default::default()
     }
 
-    pub fn limit(&mut self, limit: usize) -> &mut Self {
+    pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
-    pub fn with_payload(&mut self, with_payload: bool) -> &mut Self {
+    pub fn with_payload(mut self, with_payload: bool) -> Self {
         self.with_payload = with_payload;
         self
     }
 
-    pub fn autoset_id(&mut self, autoset: bool) -> &mut Self {
+    pub fn autoset_id(mut self, autoset: bool) -> Self {
         self.autoset_id = autoset;
         self
     }
 
-    pub fn build(&mut self) -> Self {
-        self.clone()
+    pub fn build(self) -> Self {
+        self
     }
 }
 
