@@ -10,6 +10,8 @@ pub enum Error {
     ProvidedPayload,
     #[error("id '{0}' already exists")]
     IdAlreadyExists(usize),
+    #[error("id '{0}' does not exist")]
+    IdDoesNotExist(usize),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

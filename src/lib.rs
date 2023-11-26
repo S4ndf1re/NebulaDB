@@ -30,6 +30,7 @@ pub mod vector;
 pub mod hyperplane;
 
 pub mod similarity;
+pub mod hnsw_index;
 pub mod annoy_index;
 
 mod test;
