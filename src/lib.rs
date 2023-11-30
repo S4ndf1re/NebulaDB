@@ -9,13 +9,14 @@ use rayon::{
     slice::ParallelSliceMut,
 };
 
+pub use index::*;
 pub use error::*;
 pub use hyperplane::*;
 pub use options::*;
 pub use payload_store::*;
 pub use similarity::*;
-pub use vector::*;
 use crate::annoy_index::IndexNode;
+pub use vector::*;
 
 use crate::id_provider::IdProvider;
 
@@ -29,6 +30,7 @@ pub mod vector;
 
 pub mod hyperplane;
 
+pub mod index;
 pub mod similarity;
 pub mod annoy_index;
 
@@ -55,23 +57,24 @@ impl From<Vector> for VectorInsert {
 }
 
 
-pub struct Index<S> {
+pub struct Index<S,I> {
     vec_len: usize,
-    index: IndexNode,
+    index: I,
     payload_store: PayloadStore,
     id_provider: IdProvider<usize>,
     _name: String,
     _phantom_s: PhantomData<S>,
 }
 
-impl<S> Index<S>
+impl<S, I> Index<S, I>
     where
         S: SimilarityMeasure,
+        I: index::Index<S>
 {
     pub fn new(name: String, len: usize) -> Self {
         Self {
             vec_len: len,
-            index: IndexNode::Leaf { vectors: vec![] },
+            index: I::create(),
             payload_store: PayloadStore::new(),
             id_provider: IdProvider::new(),
             _name: name,
@@ -131,7 +134,7 @@ impl<S> Index<S>
         options: QueryOptions,
     ) -> Vec<(f64, &Vector)> {
         // NOTE: Use Rayon to parallelize computation
-        let mut result = self.index.query::<S>(ref_point, options.limit);
+        let mut result = self.index.query(ref_point, options.limit);
 
         if options.ascending {
             result = result
