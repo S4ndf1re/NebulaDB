@@ -1,6 +1,6 @@
 #![cfg(test)]
 
-use crate::{CosineSimilarity, Index, InsertOptions, QueryOptions, Vector};
+use crate::{CosineSimilarity, Index, InsertOptions, QueryOptions, Vector, annoy_index::IndexNode};
 
 #[test]
 fn simple_cosine() {
@@ -15,7 +15,7 @@ fn simple_cosine() {
 
 #[test]
 fn simple_insert() {
-    let mut collection = Index::<CosineSimilarity>::new("test".to_owned(), 3);
+    let mut collection = Index::<CosineSimilarity, IndexNode>::new("test".to_owned(), 3);
 
     let vec1 = Vector::new_with_default_id( [1.0, 0.0, 0.0].to_vec());
     let vec1_inv = Vector::new_with_default_id( [-1.0, 0.0, 0.0].to_vec());
@@ -28,7 +28,7 @@ fn simple_insert() {
 
 #[test]
 fn simple_insert_and_query() {
-    let mut collection = Index::<CosineSimilarity>::new("test".to_owned(), 3);
+    let mut collection = Index::<CosineSimilarity, IndexNode>::new("test".to_owned(), 3);
 
     let vec1 = Vector::new_with_default_id( [1.0, 0.0, 0.0].to_vec());
     let query = vec1.clone();
@@ -48,7 +48,7 @@ fn simple_insert_and_query() {
 
 #[test]
 fn one_million_vectors_test() {
-    let mut collection = Index::<CosineSimilarity>::new("test".to_owned(), 3);
+    let mut collection = Index::<CosineSimilarity, IndexNode>::new("test".to_owned(), 3);
 
     let mut points = vec![];
     for _ in 0..1_000_000 {
