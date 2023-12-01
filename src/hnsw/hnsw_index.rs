@@ -1,4 +1,5 @@
 use std::{
+    collections::BinaryHeap,
     collections::{HashMap, HashSet},
     ops::Deref,
     sync::Arc,
@@ -7,6 +8,37 @@ use std::{
 use rand::distributions::{Distribution, Uniform};
 
 use crate::{id_provider::IdGuard, Error, Result, Vector};
+
+pub struct ScoredVector {
+    pub score: f64,
+    pub vector: *const Vector,
+}
+
+impl ScoredVector {
+    fn new(score: f64, vector: *const Vector) -> Self {
+        Self { score, vector }
+    }
+}
+
+impl PartialEq for ScoredVector {
+    fn eq(&self, other: &Self) -> bool {
+        self.score == other.score
+    }
+}
+
+impl Eq for ScoredVector {}
+
+impl PartialOrd for ScoredVector {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.score.partial_cmp(&other.score)
+    }
+}
+
+impl Ord for ScoredVector {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.score.total_cmp(&other.score)
+    }
+}
 
 pub struct Layer {
     nodes: HashMap<Arc<IdGuard<usize>>, Vector>,
@@ -168,26 +200,26 @@ impl HnswIndex {
         lc: usize,
     ) -> Vec<*const Vector> {
         let mut visited = eq.clone();
-        let mut candidates = eq.clone();
-        let mut w: Vec<(f64, *const Vector)> = eq
-            .clone()
-            .into_iter()
-            .map(|v| (Vector::mul_unchecked(v, q), v))
-            .collect(); // TODO: make priority queue (heap)
+
+        let mut candidates = BinaryHeap::new();
+        for e in eq {
+            let score = Vector::mul_unchecked(*e, q);
+            candidates.push(ScoredVector::new(-score, *e));
+        }
+
+        let mut w = BinaryHeap::new();
+        for e in eq {
+            let score = Vector::mul_unchecked(*e, q);
+            w.push(ScoredVector::new(score, *e));
+        }
 
         while !candidates.is_empty() {
-            let c = Self::select_neighbours(q, &candidates, 1, 0)[0];
+            // select closest element from candidates to q
+            let c = candidates.pop().unwrap().vector;
 
             // select most distant element in w from q
-            let f = w.iter().enumerate().fold((0, w[0]), |acc, v| {
-                if v.1 .0 > acc.1 .0 {
-                    (v.0, *v.1)
-                } else {
-                    acc
-                }
-            });
-            let f_idx = f.0;
-            let f_vec = f.1 .1;
+            let f = w.peek().expect("this may never be empty");
+            let f_vec = f.vector;
 
             if Vector::mul_unchecked(c, q) > Vector::mul_unchecked(f_vec, q) {
                 break;
@@ -198,17 +230,17 @@ impl HnswIndex {
                     visited.push(e);
                     let eq_score = Vector::mul_unchecked(e, q);
                     if eq_score < Vector::mul_unchecked(f_vec, q) || w.len() < ef {
-                        w.push((eq_score, e));
-                        candidates.push(e);
+                        w.push(ScoredVector::new(eq_score, e));
+                        candidates.push(ScoredVector::new(-eq_score, e));
                         if w.len() > ef {
-                            w.swap_remove(f_idx);
+                            w.pop();
                         }
                     }
                 }
             }
         }
-        w.sort_by(|v1, v2| v1.0.total_cmp(&v2.0));
-        return w.into_iter().map(|v| v.1).collect();
+        
+        return w.into_sorted_vec().into_iter().map(|v| v.vector).collect();
     }
 
     unsafe fn select_neighbours<'a>(

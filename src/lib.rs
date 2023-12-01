@@ -15,7 +15,6 @@ pub use hyperplane::*;
 pub use options::*;
 pub use payload_store::*;
 pub use similarity::*;
-use crate::annoy_index::IndexNode;
 pub use vector::*;
 
 use crate::id_provider::IdProvider;
@@ -32,7 +31,7 @@ pub mod hyperplane;
 
 pub mod index;
 pub mod similarity;
-pub mod hnsw_index;
+pub mod hnsw;
 pub mod annoy_index;
 
 mod test;
