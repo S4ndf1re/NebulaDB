@@ -65,9 +65,9 @@ pub struct Index<S, I> {
 }
 
 impl<S, I> Index<S, I>
-where
-    S: SimilarityMeasure,
-    I: index::Index<S>,
+    where
+        S: SimilarityMeasure,
+        I: index::Index<S>,
 {
     pub fn new(name: String, len: usize) -> Self {
         Self {
@@ -133,6 +133,7 @@ where
 
     /// query all vectors and get most similar
     /// Note that this function may spawn threads (rayon)
+    /// Scores with value NaN are ignored
     pub fn query(&self, ref_point: &Vector, options: QueryOptions) -> Result<Vec<(f64, &Vector)>> {
         // NOTE: Use Rayon to parallelize computation
         let mut result = self.index.query(ref_point, options.limit)?;
@@ -140,13 +141,13 @@ where
         if options.ascending {
             result = result
                 .into_par_iter()
-                .filter(|x| x.0 <= options.cutoff)
+                .filter(|x| x.0 <= options.cutoff && !x.0.is_nan())
                 .collect();
             result.par_sort_by(|x, y| x.0.total_cmp(&y.0));
         } else {
             result = result
                 .into_par_iter()
-                .filter(|x| x.0 >= options.cutoff)
+                .filter(|x| x.0 >= options.cutoff && !x.0.is_nan())
                 .collect();
             result.par_sort_by(|x, y| y.0.total_cmp(&x.0));
         }

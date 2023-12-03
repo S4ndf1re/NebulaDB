@@ -20,7 +20,8 @@ impl HnswIndex {
         for _ in 0..layers {
             let mut id: IdGuard<usize> = IdGuard::default();
             id.set_value(usize::MAX);
-            let v = Vector::new(Arc::new(id), vec![0.0; vec_len]);
+            // NOTE: this is f64::NAN, because these points should never get returned
+            let v = Vector::new(Arc::new(id), vec![f64::NAN; vec_len]);
             let layer = Layer::new(v);
             layer_vec.push(layer);
         }
@@ -47,7 +48,7 @@ impl HnswIndex {
             .collect()
     }
 
-    /// set all neighbours of e in layer to neighboorhood
+    /// set all neighbours of e in layer to neighborhood
     unsafe fn set_neighborhood(
         &mut self,
         e: *const Vector,
@@ -155,7 +156,7 @@ impl HnswIndex {
             ep = Self::select_neighbours(&q, &w, 1, lc);
         }
 
-        for lc in (0..std::cmp::min(l, new_layer)).rev() {
+        for lc in (0..std::cmp::min(l, new_layer)+1).rev() {
             self.layers[lc].add_vector(q.clone())?;
             let w = self.search_layer(&q, &ep, ef_construction, lc);
             let neighbors = Self::select_neighbours(&q, &w, m, lc);

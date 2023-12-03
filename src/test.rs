@@ -130,8 +130,8 @@ fn hnsw_basic_query_test() {
             InsertOptions::default().autoset_id(true).build(),
         )
         .unwrap();
-
-    let result = collection.query(&query, QueryOptions::new()).unwrap();
+    let options = QueryOptions::default();
+    let result = collection.query(&query, options).unwrap();
     assert_eq!(result.len(), 3);
     assert!(1.0 - result[0].0 <= f64::EPSILON);
     assert!(result[1].0 <= f64::EPSILON);
