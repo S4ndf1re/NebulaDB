@@ -4,21 +4,18 @@ use std::marker::PhantomData;
 use std::ops::Deref;
 use std::sync::Arc;
 
-use rayon::{
-    prelude::{IntoParallelIterator, ParallelIterator},
-    slice::ParallelSliceMut,
-};
-
-pub use index::*;
 pub use error::*;
 pub use hyperplane::*;
+pub use index::*;
 pub use options::*;
 pub use payload_store::*;
+pub use query_queue::*;
 pub use similarity::*;
-use crate::annoy_index::IndexNode;
 pub use vector::*;
 
 use crate::id_provider::IdProvider;
+
+pub mod query_queue;
 
 pub mod util;
 
@@ -30,14 +27,14 @@ pub mod vector;
 
 pub mod hyperplane;
 
+pub mod annoy_index;
+pub mod hnsw;
 pub mod index;
 pub mod similarity;
-pub mod annoy_index;
 
-mod test;
-pub mod payload_store;
 pub(crate) mod id_provider;
-
+pub mod payload_store;
+mod test;
 
 #[derive(Clone)]
 pub struct VectorInsert {
@@ -56,33 +53,34 @@ impl From<Vector> for VectorInsert {
     }
 }
 
-
-pub struct Index<S,I> {
+pub struct Index<S, I> {
     vec_len: usize,
-    index: I,
-    payload_store: PayloadStore,
+    queue: OperationQueue<I, S>,
     id_provider: IdProvider<usize>,
     _name: String,
     _phantom_s: PhantomData<S>,
 }
 
 impl<S, I> Index<S, I>
-    where
-        S: SimilarityMeasure,
-        I: index::Index<S>
+where
+    S: SimilarityMeasure,
+    I: index::Index<S>,
 {
     pub fn new(name: String, len: usize) -> Self {
         Self {
             vec_len: len,
-            index: I::create(),
-            payload_store: PayloadStore::new(),
+            queue: OperationQueue::new(I::create(len), PayloadStore::new()),
             id_provider: IdProvider::new(),
             _name: name,
             _phantom_s: PhantomData {},
         }
     }
 
-    pub fn upsert<P: AsRef<[VectorInsert]>>(&mut self, points: P, options: InsertOptions) -> Result<()> {
+    pub fn upsert<P: AsRef<[VectorInsert]>>(
+        &mut self,
+        points: P,
+        options: InsertOptions,
+    ) -> Result<()> {
         for i in 0..points.as_ref().len() {
             let point = &points.as_ref()[i];
             if point.vec.data.len() != self.vec_len {
@@ -106,21 +104,31 @@ impl<S, I> Index<S, I>
             }
         }
 
+        let mut rx_list = vec![];
+
         for point in points.as_ref() {
             let mut point = point.clone();
 
             let id = if options.autoset_id {
                 self.id_provider.claim_new_id()
             } else {
-                self.id_provider.claim_if_free(&point.id).ok_or(Error::IdAlreadyExists(point.id))?
+                self.id_provider
+                    .claim_if_free(&point.id)
+                    .ok_or(Error::IdAlreadyExists(point.id))?
             };
 
             point.vec.id = Arc::clone(&id);
 
-            self.index.insert(point.vec, options.limit);
-            if point.payload.is_some() {
-                self.payload_store.add_payload(id, point.payload.unwrap().to_owned());
-            }
+            let (tx, rx) = oneshot::channel();
+            rx_list.push(rx);
+            let insert_element =
+                InsertElement::create_insert(point.vec, point.payload, options.limit, tx);
+            self.queue.add_insert(insert_element)?;
+        }
+
+        self.queue.work_queues()?; // TODO: multithreading
+        for rx in rx_list {
+            let _ = rx.recv()?;
         }
 
         Ok(())
@@ -128,28 +136,21 @@ impl<S, I> Index<S, I>
 
     /// query all vectors and get most similar
     /// Note that this function may spawn threads (rayon)
-    pub fn query(
-        &self,
-        ref_point: &Vector,
-        options: QueryOptions,
-    ) -> Vec<(f64, &Vector)> {
+    /// Scores with value NaN are ignored
+    pub fn query(&self, ref_point: &Vector, options: QueryOptions) -> Result<Vec<(f64, Vector)>> {
         // NOTE: Use Rayon to parallelize computation
-        let mut result = self.index.query(ref_point, options.limit);
+        let (tx, rx) = oneshot::channel();
+        let query_elem = QueryElement::create_query(
+            ref_point.to_owned(),
+            options.cutoff,
+            options.ascending,
+            options.limit,
+            tx,
+        );
+        self.queue.add_query(query_elem)?;
+        self.queue.work_queues()?; // TODO: multithreading
 
-        if options.ascending {
-            result = result
-                .into_par_iter()
-                .filter(|x| x.0 <= options.cutoff)
-                .collect();
-            result.par_sort_by(|x, y| x.0.total_cmp(&y.0));
-        } else {
-            result = result
-                .into_par_iter()
-                .filter(|x| x.0 >= options.cutoff)
-                .collect();
-            result.par_sort_by(|x, y| y.0.total_cmp(&x.0));
-        }
-
-        result
+        let result = rx.recv()??;
+        Ok(result)
     }
 }

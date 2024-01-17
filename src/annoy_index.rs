@@ -1,4 +1,4 @@
-use crate::{Hyperplane, SimilarityMeasure, util, Vector, index::Index};
+use crate::{index::Index, util, Hyperplane, Result, SimilarityMeasure, Vector};
 
 /// Annoy Index node
 /// Left node means, all vectors are below the hyperplane
@@ -46,16 +46,14 @@ impl IndexNode {
             }
         }
     }
-
 }
 
 impl<S: SimilarityMeasure> Index<S> for IndexNode {
-
-    fn create() -> Self {
-        return Self::Leaf { vectors: vec![] }
+    fn create(_: usize) -> Self {
+        return Self::Leaf { vectors: vec![] };
     }
 
-    fn query(&self, query: &Vector, count: usize) -> Vec<(f64, &Vector)> {
+    fn query<'a>(&'a self, query: &Vector, count: usize) -> Result<Vec<(f64, &'a Vector)>> {
         match self {
             IndexNode::Leaf { vectors } => {
                 let mut vectors: Vec<_> = vectors
@@ -63,7 +61,7 @@ impl<S: SimilarityMeasure> Index<S> for IndexNode {
                     .map(|v| (S::compare(query, v), v))
                     .collect();
                 vectors.sort_by(|a, b| a.0.total_cmp(&b.0));
-                vectors.into_iter().take(count).collect()
+                Ok(vectors.into_iter().take(count).collect())
             }
             IndexNode::Node {
                 left,
@@ -78,16 +76,16 @@ impl<S: SimilarityMeasure> Index<S> for IndexNode {
                         Index::<S>::query(left.as_ref(), query, count)
                     }
                 } else {
-                    let left_res = Index::<S>::query(left.as_ref(), query, count);
-                    let right_res = Index::<S>::query(right.as_ref(), query, count);
+                    let left_res = Index::<S>::query(left.as_ref(), query, count)?;
+                    let right_res = Index::<S>::query(right.as_ref(), query, count)?;
                     let result = util::merge_by(left_res, right_res);
-                    result
+                    Ok(result)
                 }
             }
         }
     }
 
-    fn insert(&mut self, vector: Vector, limit: usize) {
+    fn insert(&mut self, vector: Vector, limit: usize) -> Result<()> {
         match self {
             IndexNode::Leaf { vectors } => {
                 vectors.push(vector);
@@ -115,11 +113,12 @@ impl<S: SimilarityMeasure> Index<S> for IndexNode {
                         right: IndexNode::Leaf {
                             vectors: right_list,
                         }
-                            .into(),
+                        .into(),
                         total,
                         hyperplane: plane,
                     }
                 }
+                Ok(())
             }
             IndexNode::Node {
                 left,
@@ -129,10 +128,11 @@ impl<S: SimilarityMeasure> Index<S> for IndexNode {
             } => {
                 *total += 1;
                 if *hyperplane <= vector {
-                    Index::<S>::insert(right.as_mut(), vector, limit);
+                    Index::<S>::insert(right.as_mut(), vector, limit)?;
                 } else {
-                    Index::<S>::insert(left.as_mut(), vector, limit);
+                    Index::<S>::insert(left.as_mut(), vector, limit)?;
                 }
+                Ok(())
             }
         }
     }

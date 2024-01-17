@@ -8,7 +8,7 @@ pub struct Metadata {
     pub map: HashMap<String, String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Vector {
     pub id: Arc<IdGuard<usize>>,
     pub data: Vec<f64>,
@@ -54,6 +54,7 @@ impl Vector {
 
         self.data = vec;
     }
+
 }
 
 impl From<Vec<f64>> for Vector {
@@ -140,5 +141,15 @@ impl PartialEq for Vector {
         }
 
         true
+    }
+}
+
+
+impl Vector {
+    pub unsafe fn mul_unchecked(a: *const Vector, b: *const Vector) -> f64 {
+        let a = &*a;
+        let b = &*b;
+
+        a * b
     }
 }

@@ -1,12 +1,15 @@
 #![cfg(test)]
 
-use crate::{CosineSimilarity, Index, InsertOptions, QueryOptions, Vector, annoy_index::IndexNode};
+use crate::{
+    annoy_index::IndexNode, hnsw::HnswIndex, CosineSimilarity, Index, InsertOptions, QueryOptions,
+    Vector,
+};
 
 #[test]
 fn simple_cosine() {
     let vec1 = Vector::new_with_default_id([1.0, 0.0, 0.0].to_vec());
     let vec1_inv = Vector::new_with_default_id([-1.0, 0.0, 0.0].to_vec());
-    let vec2 = Vector::new_with_default_id( [0.0, 1.0, 0.0].to_vec());
+    let vec2 = Vector::new_with_default_id([0.0, 1.0, 0.0].to_vec());
 
     assert!(1.0 - &vec1 * &vec1 <= f64::EPSILON);
     assert!(-1.0 - &vec1 * &vec1_inv <= f64::EPSILON);
@@ -17,12 +20,15 @@ fn simple_cosine() {
 fn simple_insert() {
     let mut collection = Index::<CosineSimilarity, IndexNode>::new("test".to_owned(), 3);
 
-    let vec1 = Vector::new_with_default_id( [1.0, 0.0, 0.0].to_vec());
-    let vec1_inv = Vector::new_with_default_id( [-1.0, 0.0, 0.0].to_vec());
-    let vec2 = Vector::new_with_default_id( [0.0, 1.0, 0.0].to_vec());
+    let vec1 = Vector::new_with_default_id([1.0, 0.0, 0.0].to_vec());
+    let vec1_inv = Vector::new_with_default_id([-1.0, 0.0, 0.0].to_vec());
+    let vec2 = Vector::new_with_default_id([0.0, 1.0, 0.0].to_vec());
 
     collection
-        .upsert(&[vec1.into(), vec1_inv.into(), vec2.into()], InsertOptions::default().autoset_id(true).build())
+        .upsert(
+            &[vec1.into(), vec1_inv.into(), vec2.into()],
+            InsertOptions::default().autoset_id(true).build(),
+        )
         .unwrap();
 }
 
@@ -30,16 +36,19 @@ fn simple_insert() {
 fn simple_insert_and_query() {
     let mut collection = Index::<CosineSimilarity, IndexNode>::new("test".to_owned(), 3);
 
-    let vec1 = Vector::new_with_default_id( [1.0, 0.0, 0.0].to_vec());
+    let vec1 = Vector::new_with_default_id([1.0, 0.0, 0.0].to_vec());
     let query = vec1.clone();
-    let vec1_inv = Vector::new_with_default_id( [-1.0, 0.0, 0.0].to_vec());
+    let vec1_inv = Vector::new_with_default_id([-1.0, 0.0, 0.0].to_vec());
     let vec2 = Vector::new_with_default_id([0.0, 1.0, 0.0].to_vec());
 
     collection
-        .upsert(&[vec1.into(), vec1_inv.into(), vec2.into()], InsertOptions::default().autoset_id(true).build())
+        .upsert(
+            &[vec1.into(), vec1_inv.into(), vec2.into()],
+            InsertOptions::default().autoset_id(true).build(),
+        )
         .unwrap();
 
-    let result = collection.query(&query, QueryOptions::new());
+    let result = collection.query(&query, QueryOptions::new()).unwrap();
     assert_eq!(result.len(), 3);
     assert!(1.0 - result[0].0 <= f64::EPSILON);
     assert!(result[1].0 <= f64::EPSILON);
@@ -52,27 +61,79 @@ fn one_million_vectors_test() {
 
     let mut points = vec![];
     for _ in 0..1_000_000 {
-        let v = Vector::new_with_default_id([
-            rand::random::<f64>(),
-            rand::random::<f64>(),
-            rand::random::<f64>(),
-        ].to_vec());
+        let v = Vector::new_with_default_id(
+            [
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+                rand::random::<f64>(),
+            ]
+            .to_vec(),
+        );
         points.push(v.into());
     }
 
     let timer = std::time::Instant::now();
 
-    collection.upsert(points, InsertOptions::default().autoset_id(true).build()).unwrap();
+    collection
+        .upsert(points, InsertOptions::default().autoset_id(true).build())
+        .unwrap();
 
     println!("Elapsed build index: {} ms", timer.elapsed().as_millis());
 
     let timer = std::time::Instant::now();
-    let v = Vector::new_with_default_id([
-        rand::random::<f64>(),
-        rand::random::<f64>(),
-        rand::random::<f64>(),
-    ].to_vec());
-    let result_size = collection.query(&v, QueryOptions::default()).len();
+    let v = Vector::new_with_default_id(
+        [
+            rand::random::<f64>(),
+            rand::random::<f64>(),
+            rand::random::<f64>(),
+        ]
+        .to_vec(),
+    );
+    let result_size = collection.query(&v, QueryOptions::default()).unwrap().len();
 
-    println!("Elapsed query: {} ns, for {} entries", timer.elapsed().as_nanos(), result_size);
+    println!(
+        "Elapsed query: {} ns, for {} entries",
+        timer.elapsed().as_nanos(),
+        result_size
+    );
+}
+
+#[test]
+fn hnsw_basic_insert_test() {
+    let mut collection = Index::<CosineSimilarity, HnswIndex>::new("test".to_owned(), 3);
+
+    let vec1 = Vector::new_with_default_id([1.0, 0.0, 0.0].to_vec());
+    let vec1_inv = Vector::new_with_default_id([-1.0, 0.0, 0.0].to_vec());
+    let vec2 = Vector::new_with_default_id([0.0, 1.0, 0.0].to_vec());
+
+    collection
+        .upsert(
+            &[vec1.into(), vec1_inv.into(), vec2.into()],
+            InsertOptions::default().autoset_id(true).build(),
+        )
+        .unwrap();
+}
+
+
+#[test]
+fn hnsw_basic_query_test() {
+    let mut collection = Index::<CosineSimilarity, HnswIndex>::new("test".to_owned(), 3);
+
+    let vec1 = Vector::new_with_default_id([1.0, 0.0, 0.0].to_vec());
+    let query = vec1.clone();
+    let vec1_inv = Vector::new_with_default_id([-1.0, 0.0, 0.0].to_vec());
+    let vec2 = Vector::new_with_default_id([0.0, 1.0, 0.0].to_vec());
+
+    collection
+        .upsert(
+            &[vec1.into(), vec1_inv.into(), vec2.into()],
+            InsertOptions::default().autoset_id(true).build(),
+        )
+        .unwrap();
+    let options = QueryOptions::default();
+    let result = collection.query(&query, options).unwrap();
+    assert_eq!(result.len(), 3);
+    assert!(1.0 - result[0].0 <= f64::EPSILON);
+    assert!(result[1].0 <= f64::EPSILON);
+    assert!(-1.0 - result[2].0 <= f64::EPSILON);
 }

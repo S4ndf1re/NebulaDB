@@ -4,8 +4,20 @@ use std::iter::Step;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
+
+pub trait Max {
+    fn max() -> Self;
+}
+
+impl Max for usize {
+    fn max() -> Self {
+        usize::MAX
+    }
+}
+
 pub type SharedIdGuard<I> = Arc<IdGuard<I>>;
 
+#[derive(Debug)]
 pub struct IdGuard<I>
     where I: Hash + PartialEq + Clone
 {
@@ -20,6 +32,10 @@ impl<I> IdGuard<I>
             value: id,
             free: Some(free),
         }
+    }
+
+    pub(crate) fn set_value(&mut self, new_value: I) {
+        self.value = new_value;
     }
 }
 
@@ -42,8 +58,7 @@ impl<I> PartialEq for IdGuard<I>
 }
 
 impl<I> Eq for IdGuard<I>
-    where I: Hash + PartialEq + Clone {
-}
+    where I: Hash + PartialEq + Clone {}
 
 impl<I> Drop for IdGuard<I>
     where I: Hash + PartialEq + Clone {
@@ -76,7 +91,7 @@ pub(crate) struct IdProvider<I> {
 
 
 impl<I> IdProvider<I>
-    where I: Hash + PartialEq + Step + Default + PartialOrd {
+    where I: Hash + PartialEq + Step + Max + Default + PartialOrd {
     pub fn new() -> Self {
         Self {
             next_free: RefCell::new(I::default()),
@@ -89,6 +104,9 @@ impl<I> IdProvider<I>
         let mut free_locked = self.free.lock().unwrap();
         if free_locked.is_empty() {
             let next = Step::forward(self.next_free.borrow().clone(), 1);
+             if next == I::max() {
+                 panic!("No more ids available"); // TODO change api to use Result
+             }
             Arc::new(IdGuard::new(self.next_free.replace(next), Arc::clone(&self.free)))
         } else {
             Arc::new(IdGuard::new(free_locked.pop().unwrap(), Arc::clone(&self.free)))
@@ -125,7 +143,7 @@ impl<I> IdProvider<I>
 
     pub fn check_is_free(&self, id: &I) -> bool {
         if id >= self.next_free.borrow().deref() {
-           true
+            true
         } else {
             let locked = self.free.lock().unwrap();
             locked.contains(id)
