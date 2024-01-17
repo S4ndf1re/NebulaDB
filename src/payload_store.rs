@@ -1,18 +1,17 @@
 use std::collections::HashMap;
 
-use crate::id_provider::{SharedIdGuard};
+use crate::id_provider::SharedIdGuard;
 
 pub type JsonMap = HashMap<String, String>;
 
 pub struct PayloadStore {
-    payloads: HashMap<SharedIdGuard<usize> ,JsonMap>,
+    payloads: HashMap<SharedIdGuard<usize>, JsonMap>,
 }
-
 
 impl PayloadStore {
     pub fn new() -> Self {
         Self {
-            payloads: HashMap::new()
+            payloads: HashMap::new(),
         }
     }
 

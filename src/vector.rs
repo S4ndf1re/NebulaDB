@@ -8,7 +8,7 @@ pub struct Metadata {
     pub map: HashMap<String, String>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Vector {
     pub id: Arc<IdGuard<usize>>,
     pub data: Vec<f64>,

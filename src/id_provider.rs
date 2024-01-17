@@ -17,6 +17,7 @@ impl Max for usize {
 
 pub type SharedIdGuard<I> = Arc<IdGuard<I>>;
 
+#[derive(Debug)]
 pub struct IdGuard<I>
     where I: Hash + PartialEq + Clone
 {

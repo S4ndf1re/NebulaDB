@@ -3,7 +3,11 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("invalid upsert vector length for vector at index {index}. Expected {expected}, found {found}")]
-    VectorLengthInvalid { index: usize, expected: usize, found: usize },
+    VectorLengthInvalid {
+        index: usize,
+        expected: usize,
+        found: usize,
+    },
     #[error("option with_payload was set to true, meaning all upserted vectors must be paired with a payload")]
     MissingPayload,
     #[error("option with_payload was set to false, meaning all upserted vectors must NOT be paired with a payload")]
@@ -12,6 +16,12 @@ pub enum Error {
     IdAlreadyExists(usize),
     #[error("id '{0}' does not exist")]
     IdDoesNotExist(usize),
+    #[error("failed to send to channel after query")]
+    SendToQueryQueueChannelFailed,
+    #[error("failed to recv")]
+    RecvFailed(#[from] oneshot::RecvError),
+    #[error("failed to lock mutex")]
+    MutexLockError,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
